@@ -44,6 +44,21 @@ h1{margin:0;font-size:15px;letter-spacing:.18em;text-transform:uppercase;color:v
 .h{font-size:12px;font-weight:600;padding:6px 10px;border-radius:999px;background:var(--surface);border:1px solid var(--line);color:var(--muted);border-left:4px solid var(--c)}
 .foot{text-align:center;color:var(--muted);font-size:12px}
 [hidden]{display:none!important}
+.players{display:flex;align-items:center;justify-content:center;gap:14px;color:var(--muted);font-size:14px;font-weight:600}
+.players button{width:42px;height:42px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--text);font-size:22px;font-weight:700;cursor:pointer}
+.players b{min-width:22px;text-align:center;color:var(--text);font-size:21px}
+.team{display:grid;gap:10px}
+.pc{position:relative;overflow:hidden;border:0;padding:0;border-radius:18px;aspect-ratio:3/4;background:linear-gradient(160deg,color-mix(in srgb,var(--c,#6366f1) 70%,#000),color-mix(in srgb,var(--c,#6366f1) 25%,var(--surface)));border-bottom:5px solid var(--c,#6366f1);color:#fff;text-align:left;cursor:pointer}
+.pc img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;display:none;animation:fadein .35s}
+.pc::after{content:"";position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.85),transparent 55%)}
+.pc>span,.pc>b{position:absolute;left:10px;right:10px;z-index:2}
+.pc .pl{top:10px;right:auto;max-width:calc(100% - 20px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:800;letter-spacing:.03em;background:rgba(0,0,0,.45);padding:4px 9px;border-radius:8px}
+.names{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.names input{width:100%;min-width:0;border:1px solid var(--line);background:var(--surface);color:var(--text);border-radius:10px;padding:10px 12px;font-size:16px;font-family:inherit}
+.names input::placeholder{color:var(--muted)}
+.pc>b{bottom:26px;font-size:15px;line-height:1.1;font-weight:900}
+.pc .prole{bottom:9px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;opacity:.9;font-weight:700}
+.pc.pop{animation:pop .45s cubic-bezier(.2,1.6,.4,1)}
 .bbtn{align-self:center;border:1px solid var(--line);background:var(--surface);color:var(--text);padding:10px 16px;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .tile{position:relative;overflow:hidden;border:0;padding:0;border-radius:14px;aspect-ratio:3/4;background:linear-gradient(160deg,color-mix(in srgb,var(--c) 70%,#000),color-mix(in srgb,var(--c) 25%,var(--surface)));cursor:pointer;border-bottom:4px solid var(--c);color:#fff;text-align:left}
@@ -67,6 +82,8 @@ h1{margin:0;font-size:15px;letter-spacing:.18em;text-transform:uppercase;color:v
     <button class="chip" data-r="S" aria-pressed="false">Strategist</button>
   </div>
   <button class="bbtn" id="browse">Browse all heroes</button>
+  <div class="players" id="players"><span>Players</span><button id="pm" aria-label="fewer players">−</button><b id="pn">1</b><button id="pp" aria-label="more players">+</button></div>
+  <div class="names" id="names" hidden></div>
   <div class="card" id="card">
     <img class="pr" id="pr" alt="">
     <img class="av" id="av" alt="">
@@ -76,6 +93,8 @@ h1{margin:0;font-size:15px;letter-spacing:.18em;text-transform:uppercase;color:v
     <div class="tag" id="tag"></div>
     <a class="see" id="see" target="_blank" rel="noopener" href="#">See pictures ↗</a>
   </div>
+  <div class="team" id="team" hidden></div>
+  <div class="foot" id="thint" hidden>Tap a card to reroll just that player</div>
   <button class="go" id="go">ROLL</button>
   <div class="hist" id="hist"></div>
   <div class="grid" id="grid" hidden></div>
@@ -113,7 +132,7 @@ function setAv(n){const t=++token,p=$("pr"),a=$("av"),pu=prUrl(n),urls=[pu,imgUr
 function show(h,role,skip){const R=ROLE[role];$("card").style.setProperty("--rc",R.c);$("name").textContent=h.n;$("tag").textContent=TAGS[h.n]||"";if(skip){token++;hideImgs()}else setAv(h.n);const s=$("see");s.href="https://www.google.com/search?tbm=isch&q="+encodeURIComponent(h.n+" Marvel Rivals");s.style.visibility=busy?"hidden":"visible";
  const b=$("badge");b.style.visibility="visible";b.innerHTML='<svg viewBox="0 0 24 24"><path d="'+R.i+'"/></svg>'+R.n}
 function roll(){
-  if(busy)return;const p=pool();let cand=p.filter(h=>h.n!==last);if(!cand.length)cand=p;
+  if(busy)return;insp=false;if(N>1){layout();rollAll();return}layout();const p=pool();let cand=p.filter(h=>h.n!==last);if(!cand.length)cand=p;
   const pick=cand[rand(cand.length)],role=pick.r[rand(pick.r.length)];
   busy=true;$("go").disabled=true;$("hint").textContent="";$("card").classList.add("spin");
   const steps=18;let i=0;
@@ -132,11 +151,34 @@ let browsing=false;
 const esc=t=>t.replace(/&/g,"&amp;");
 function renderGrid(){$("grid").innerHTML=pool().slice().sort((a,b)=>a.n.localeCompare(b.n)).map(h=>{const m=h.r.length>1?"M":h.r[0];
  return '<button class="tile" data-n="'+esc(h.n)+'" style="--c:'+ROLE[m].c+'"><span class="ti">'+mono(h.n)+'</span><img loading="lazy" alt="" src="'+(prUrl(h.n)||imgUrl(h.n))+'" onerror="this.style.display=\'none\'"><span class="tn">'+esc(h.n)+'</span><span class="tr">'+ROLE[m].n+'</span></button>'}).join("")}
-function setBrowse(on){browsing=on;["card","go","hist"].forEach(id=>$(id).hidden=on);$("grid").hidden=!on;$("browse").textContent=on?"\u2190 Back to roller":"Browse all heroes";if(on)renderGrid();window.scrollTo(0,0)}
-function inspect(h){if(busy)return;setBrowse(false);last=h.n;show(h,h.r.length>1?"M":h.r[0]);$("hint").textContent="";const c=$("card");c.classList.remove("spin","pop");void c.offsetWidth;c.classList.add("pop")}
+function setBrowse(on){browsing=on;layout();$("browse").textContent=on?"\u2190 Back to roller":"Browse all heroes";if(on)renderGrid();window.scrollTo(0,0)}
+function inspect(h){if(busy)return;insp=true;setBrowse(false);last=h.n;show(h,h.r.length>1?"M":h.r[0]);$("hint").textContent="";const c=$("card");c.classList.remove("spin","pop");void c.offsetWidth;c.classList.add("pop")}
 $("browse").onclick=()=>setBrowse(!browsing);
 $("grid").onclick=e=>{const b=e.target.closest(".tile");if(b)inspect(HEROES.find(x=>x.n===b.dataset.n))};
-$("go").onclick=roll;updFoot();(function pre(i){if(i>=HEROES.length)return;const n=HEROES[i].n;loadImg(prUrl(n)||imgUrl(n),()=>pre(i+1))})(0);
+let N=1,insp=false,team=[];
+try{N=Math.min(6,Math.max(1,parseInt(localStorage.getItem("rr_n"))||1))}catch(e){}
+let NAMES=[];try{NAMES=JSON.parse(localStorage.getItem("rr_names"))||[]}catch(e){}
+const lbl=i=>(NAMES[i]||"").trim()||"P"+(i+1);
+function buildNames(){const w=$("names");w.innerHTML="";for(let i=0;i<N;i++){const inp=document.createElement("input");inp.type="text";inp.maxLength=14;inp.placeholder="Player "+(i+1);inp.value=NAMES[i]||"";inp.autocomplete="off";
+ inp.oninput=()=>{NAMES[i]=inp.value;try{localStorage.setItem("rr_names",JSON.stringify(NAMES))}catch(e){}const c=$("team").children[i];if(c)c.querySelector(".pl").textContent=lbl(i)};w.appendChild(inp)}}
+const cols=n=>n===1?1:(n===2||n===4)?2:3;
+function layout(){const solo=N===1||insp;$("card").hidden=browsing||!solo;$("team").hidden=browsing||solo;$("names").hidden=browsing||solo;$("thint").hidden=browsing||solo;$("hist").hidden=browsing||!solo;$("go").hidden=browsing;$("players").hidden=browsing;$("grid").hidden=!browsing}
+function buildTeam(){const t=$("team");t.style.gridTemplateColumns="repeat("+cols(N)+",1fr)";t.innerHTML="";team=[];for(let i=0;i<N;i++){const d=document.createElement("button");d.className="pc";d.dataset.i=i;d.innerHTML='<img alt=""><span class="pl"></span><b>?</b><span class="prole">Tap roll</span>';d.querySelector(".pl").textContent=lbl(i);t.appendChild(d)}}
+function setN(n){if(busy)return;N=Math.max(1,Math.min(6,n));try{localStorage.setItem("rr_n",N)}catch(e){}insp=false;$("pn").textContent=N;buildTeam();buildNames();layout()}
+function pickN(n,skip){const p=pool().filter(h=>!skip.includes(h.n));for(let i=p.length-1;i>0;i--){const j=rand(i+1);[p[i],p[j]]=[p[j],p[i]]}return p.slice(0,n)}
+function showPc(el,h,role,final){const R=ROLE[role],im=el.querySelector("img"),t=el._t=(el._t||0)+1;el.style.setProperty("--c",R.c);el.querySelector("b").textContent=h.n;el.querySelector(".prole").textContent=R.n;im.style.display="none";if(!final)return;
+ const pu=prUrl(h.n),urls=[pu,imgUrl(h.n)].filter(Boolean);(function next(i){if(i>=urls.length||el._t!==t)return;loadImg(urls[i],ok=>{if(el._t!==t)return;if(!ok)return next(i+1);im.src=urls[i];im.style.display="block"})})(0)}
+function spinPc(el,pick,role,idx,done){const p=pool(),steps=14+idx;let i=0;el.classList.remove("pop");
+ (function tick(){if(i<steps){const h=p[rand(p.length)];showPc(el,h,h.r[rand(h.r.length)],false);i++;setTimeout(tick,45+i*i*0.9)}
+  else{showPc(el,pick,role,true);void el.offsetWidth;el.classList.add("pop");done()}})()}
+function rollAll(){const picks=pickN(N,[]),els=[...$("team").children];busy=true;$("go").disabled=true;let left=els.length;
+ team=picks.map(h=>({h,role:h.r[rand(h.r.length)]}));
+ els.forEach((el,i)=>spinPc(el,team[i].h,team[i].role,i,()=>{if(--left===0){busy=false;$("go").disabled=false;$("go").textContent="ROLL AGAIN";if(navigator.vibrate)try{navigator.vibrate(30)}catch(e){}}}))}
+function rerollOne(i){if(busy||!team[i])return;const skip=team.map(x=>x.h.n),pick=pickN(1,skip)[0];if(!pick)return;const role=pick.r[rand(pick.r.length)];busy=true;
+ spinPc($("team").children[i],pick,role,0,()=>{team[i]={h:pick,role};busy=false})}
+$("pm").onclick=()=>setN(N-1);$("pp").onclick=()=>setN(N+1);
+$("team").onclick=e=>{const c=e.target.closest(".pc");if(c)rerollOne(+c.dataset.i)};
+$("go").onclick=roll;$("pn").textContent=N;buildTeam();buildNames();layout();updFoot();(function pre(i){if(i>=HEROES.length)return;const n=HEROES[i].n;loadImg(prUrl(n)||imgUrl(n),()=>pre(i+1))})(0);
 </script>
 </body>
 </html>
